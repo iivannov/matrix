@@ -67,13 +67,24 @@ class Matrix extends Client
         $this->units = $units;
     }
 
+    /**
+     * Calculate ETA and distance between origins and destinations
+     * @return MatrixElementCollection
+     * @throws MatrixException
+     */
+    public function calculate()
+    {
+        $response = $this->call($this->getQueryParameters());
+
+        return MatrixElementCollection::make($response);
+    }
 
     /**
      * Gets the travel information between two points
      *
      * @param $origin
      * @param $destination
-     * @return MatrixElement
+     * @return MatrixElement|MatrixElementCollection
      * @throws MatrixException
      */
     public function compare($origin, $destination)
@@ -81,13 +92,9 @@ class Matrix extends Client
         $this->addOrigin($origin);
         $this->addDestination($destination);
 
-        $response = $this->call($this->getQueryParameters());
+        $elements = $this->calculate();
 
-        //@TODO refactor
-        $elements = current($response->rows);
-        $element = current(current($elements));
-
-        return new MatrixElement($element);
+        return $elements->count() > 1 ? $elements : $elements->first();
     }
 
     /**
@@ -124,6 +131,7 @@ class Matrix extends Client
     protected function call($query)
     {
         $response = $this->request('GET', null, ['query' => $query]);
+
         $body = json_decode($response->getBody()->getContents());
 
         if ($body->status != 'OK')
@@ -138,6 +146,12 @@ class Matrix extends Client
      */
     protected function getQueryParameters()
     {
+        if (!$this->origins || empty($this->origins))
+            throw new MatrixException('No origins selected');
+
+        if (!$this->destinations || empty($this->destinations))
+            throw new MatrixException('No destinations selected');
+
         return [
             'origins' => implode('|', $this->origins),
             'destinations' => implode('|', $this->destinations),
@@ -147,17 +161,15 @@ class Matrix extends Client
         ];
     }
 
-    protected function addOrigin($origin)
+    public function addOrigin($origin)
     {
         $this->origins[] = $origin;
     }
 
-    protected function addDestination($destination)
+    public function addDestination($destination)
     {
         $this->destinations[] = $destination;
     }
-
-
 
 
 }
